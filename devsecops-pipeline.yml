@@ -1,0 +1,130 @@
+﻿name: DevSecOps-Basic-Pipeline
+
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+stages:
+  - stage: GitSecretScan
+    displayName: 'Scan Git Repositories for Credential Leakage'
+    jobs:
+      - job: GitSecretScan
+        displayName: 'Git repository secret scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Scanning repository for credentials leakage...'
+              git fetch --unshallow || true
+              git log --all --pretty=format:'%H' | while read commit; do
+                git grep -I --line-number --null -e 'AKIA\|SECRET\|PASSWORD\|TOKEN\|PRIVATE_KEY' $commit || true
+              done
+            displayName: 'Scan git history for potential secrets'
+
+  - stage: SAST
+    displayName: 'Static Application Security Testing'
+    dependsOn: GitSecretScan
+    jobs:
+      - job: SAST
+        displayName: 'SAST scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Running static application security analysis...'
+              # Replace with your SAST scanner command
+              sast-tool scan --source .
+            displayName: 'Run SAST'
+
+  - stage: SCA
+    displayName: 'Software Composition Analysis'
+    dependsOn: SAST
+    jobs:
+      - job: SCA
+        displayName: 'SCA scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Running software composition analysis...'
+              # Replace with your SCA scanner command
+              sca-tool analyze --project .
+            displayName: 'Run SCA'
+
+  - stage: IAST
+    displayName: 'Interactive Application Security Testing'
+    dependsOn: SCA
+    jobs:
+      - job: IAST
+        displayName: 'IAST scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Running IAST against instrumented application...'
+              # Replace with your IAST scanner command
+              iast-tool run --app ./app --interactive
+            displayName: 'Run IAST'
+
+  - stage: DAST
+    displayName: 'Dynamic Application Security Testing'
+    dependsOn: IAST
+    jobs:
+      - job: DAST
+        displayName: 'DAST scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Starting application for dynamic testing...'
+              # Start your app or use a running environment if available
+              echo 'Running DAST scan against deployed target...'
+              dast-tool scan --target http://localhost:8080
+            displayName: 'Run DAST'
+
+  - stage: IaCScan
+    displayName: 'Infrastructure as Code Scanning'
+    dependsOn: DAST
+    jobs:
+      - job: IaCScan
+        displayName: 'IaC scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Running Terraform and HelmChart misconfiguration scan...'
+              # Replace with your IaC scanner command
+              iac-scan-tool scan --path ./infra --type terraform,helm
+            displayName: 'Run IaC Scanning'
+
+  - stage: InfrastructureScanning
+    displayName: 'Infrastructure Scanning'
+    dependsOn: IaCScan
+    jobs:
+      - job: InfrastructureScanning
+        displayName: 'Infrastructure scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Scanning infrastructure assets and configuration...'
+              # Replace with your infrastructure scanner command
+              infra-scan-tool run --targets cloud,network
+            displayName: 'Run Infrastructure Scanning'
+
+  - stage: ComplianceCheck
+    displayName: 'Compliance Check'
+    dependsOn: InfrastructureScanning
+    jobs:
+      - job: ComplianceCheck
+        displayName: 'Compliance validation'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo 'Running compliance checks...'
+              # Replace with your compliance validation command
+              compliance-tool check --profile CIS,PCI,DORA
+            displayName: 'Run Compliance Check'
